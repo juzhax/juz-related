@@ -1,8 +1,8 @@
 <?php
 /*
-Plugin Name: Bottom Content
+Plugin Name: Juz Related
 Plugin URI: http://www.juzhax.com/
-Description: Bottom Content
+Description: Put Custom HTML code to the specified posts by id.
 Version: 1.0
 Author: Justin Soo ( JuzHax )
 Author URI: http://www.juzhax.com/
@@ -11,15 +11,22 @@ License: GPL2
 
 
 /** Step 2 (from text above). */
-add_action( 'admin_menu', 'wp_juz_related_posts_menu' );
+add_action( 'admin_menu', 'wp_juz_related_menu' );
 
 /** Step 1. */
-function wp_juz_related_posts_menu() {
-	add_options_page( 'Juz Related Posts', 'Juz Related', 'manage_options', 'juz-related-posts', 'wp_juz_related_posts_page' );
+function wp_juz_related_menu() {
+	add_options_page( 'Juz Related', 'Juz Related', 'manage_options', 'juz-related', 'wp_juz_related_page' );
+}
+
+function wp_juz_related_page_menu() {
+	$menu = '<a href="?page=juz-related">List Items</a> | ';
+
+	$menu .= '<a href="?page=juz-related&action=add">Add Item</a>';
+	return $menu;
 }
 
 /** Step 3. */
-function wp_juz_related_posts_page() {
+function wp_juz_related_page() {
     //must check that the user has the required capability 
     if (!current_user_can('manage_options'))
     {
@@ -35,7 +42,9 @@ function wp_juz_related_posts_page() {
     $opt_val = get_option( $opt_name );
 		
 	if( isset($_GET['action']) && $_GET['action'] == 'edit') {
-		echo 'Juz Edit';
+		wp_juz_related_form('edit');
+	} elseif( isset($_GET['action']) && $_GET['action'] == 'add') {
+		wp_juz_related_form('add');
 	} else if( isset($_POST[ $hidden_field_name ]) && $_POST[ $hidden_field_name ] == 'Y' ) {
 
 ?>
@@ -43,64 +52,140 @@ function wp_juz_related_posts_page() {
 <?php
 
     } else {
-		wp_juz_related_posts_list();
+		wp_juz_related_list();
     
     }
 }
 
-function wp_juz_related_posts_form() {
-    // Now display the settings editing screen
 
+function wp_juz_related_form($action='add') {
+    // Now display the settings editing screen
+    if ($action == 'add') {
+		$juz_related_title = $juz_related_data = '';
+	}
+	
+	if (isset($_POST['juz_related_title']) && $_POST['juz_related_title']) {
+		$juz_related_title = $_POST['juz_related_title'];
+	}
+
+	if (isset($_POST['juz_related_data']) && $_POST['juz_related_data']) {
+		$juz_related_data = $_POST['juz_related_data'];
+	}
+	
     echo '<div class="wrap">';
 
     // header
 
-    echo "<h2>" . __( 'Juz Related Post Settings', 'menu-juz-related' ) . "</h2>";
+    echo "<h2>" . __( 'Juz Related : Add', 'menu-juz-related' ) . "</h2>";
 
     // settings form
-    
-    ?>
+    echo wp_juz_related_page_menu();
+    echo '
 
-<form name="form1" method="post" action="">
-<input type="hidden" name="<?php echo $hidden_field_name; ?>" value="Y">
+<form name="juz_related_form" method="post" action="?page=juz-related&action='.$action.'">
+<table class="form-table">
+<tbody>
 
-<p><?php _e("Favorite Color:", 'menu-juz-related' ); ?> 
-<input type="text" name="<?php echo $data_field_name; ?>" value="<?php echo $opt_val; ?>" size="20">
-</p><hr />
 
+<tr valign="top">
+<th scope="row"><label for="juz_related_title">Item Title</label></th>
+<td><input name="juz_related_title" type="text" id="juz_related_title" value="'.$juz_related_title.'" class="regular-text"></td>
+</tr>
+
+<tr valign="top"><th scope="row">Item Data</th><td>
+<textarea name="juz_related_data" class="large-text" cols="50" rows="20">'.$juz_related_data.'</textarea></td></tr>
+
+
+</tbody></table>
+<hr />
 <p class="submit">
-<input type="submit" name="Submit" class="button-primary" value="<?php esc_attr_e('Save Changes') ?>" />
+<input type="submit" name="Submit" class="button-primary" value="Add New" />
+</p>
+
+</div>
+';
+
+$temp = '
+
+<p>Title: <br />
+
+<input type="text" name="title" value="" size="100">
+</p>
+<p>
+Item data: <br />
+<textarea name="juz_related_item_data" id="juz_related_item_data" class="large-text code" rows="20">Put your HTML code to here</textarea>
+
+</p>
+<hr />
+<p class="submit">
+<input type="submit" name="Submit" class="button-primary" value="Add New" />
 </p>
 
 </form>
-</div>
 
-<?php
-	}
 
-function wp_juz_related_posts_list() {
-	$dbhost = 'data.game-solver.com';  
-	$dbname = 'test'; 
-	try {
-		$m = new Mongo("mongodb://$dbhost");  
-		
-		$db = $m->$dbname;
-		$related_post = $db->related_post;
-		echo '<pre>';
-		print_r($related_post);
-		var_dump($m->getConnections());
-		echo '</pre>';
+<table class="form-table">
+<tbody><tr valign="top">
+<th scope="row">Formatting</th>
+<td><fieldset><legend class="screen-reader-text"><span>Formatting</span></legend>
+<label for="use_smilies">
+<input name="use_smilies" type="checkbox" id="use_smilies" value="1" checked="checked">
+Convert emoticons like <code>:-)</code> and <code>:-P</code> to graphics on display</label><br>
+<label for="use_balanceTags"><input name="use_balanceTags" type="checkbox" id="use_balanceTags" value="1"> WordPress should correct invalidly nested XHTML automatically</label>
+</fieldset></td>
+</tr>
+<tr valign="top">
+<th scope="row"><label for="default_category">Default Post Category</label></th>
+<td>
+<select name="default_category" id="default_category" class="postform">
+	<option class="level-0" value="2">Blog</option>
+	<option class="level-0" value="11">Joke</option>
+	<option class="level-0" value="10">Linux</option>
+	<option class="level-0" value="1" selected="selected">Uncategorized</option>
+</select>
+</td>
+</tr>
+<tr valign="top">
+<th scope="row"><label for="default_post_format">Default Post Format</label></th>
+<td>
+	<select name="default_post_format" id="default_post_format">
+		<option value="0">Standard</option>
+		<option value="aside">Aside</option>
+		<option value="chat">Chat</option>
+		<option value="gallery">Gallery</option>
+		<option value="link">Link</option>
+		<option value="image">Image</option>
+		<option value="quote">Quote</option>
+		<option value="status">Status</option>
+		<option value="video">Video</option>
+		<option value="audio">Audio</option>
+	</select>
+</td>
+</tr>
+
+</tbody></table>
+
+<textarea name="ping_sites" id="ping_sites" class="large-text code" rows="3">http://rpc.pingomatic.com/</textarea>
+
+
+
+
+
+	';
 	
-	} catch (MongoConnectionException $e) {
-	  die('Error connecting to MongoDB server');
-	} catch (MongoException $e) {
-	  die('Error: ' . $e->getMessage());
 	}
-//	$db = $m->$dbname; 
+
+function wp_juz_related_list() {
+	global $wpdb;
+	
+	$myrows = $wpdb->get_results( "SELECT * FROM wp_juz_related_id;" );
+//	print_r($myrows);
+	
 	
 
     echo '<div class="wrap">';
-    echo "<h2>" . __( 'Juz Related Post List', 'menu-juz-related' ) . "</h2>";
+    echo "<h2>" . __( 'Juz Related : List', 'menu-juz-related' ) . "</h2>";
+    echo wp_juz_related_page_menu();
 
 
 	echo "<table><tr><th>";
@@ -115,7 +200,7 @@ function wp_juz_related_posts_list() {
 
 
 
-function wp_juz_related_posts() {
+function wp_juz_related() {
 //	global $wp_query;
 	
 	$content = '';
