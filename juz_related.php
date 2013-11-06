@@ -262,6 +262,10 @@ function wp_juz_related_form($action='add') {
 	echo $output;	
 }
 
+if(!class_exists('WP_List_Table')) :
+    require_once(ABSPATH . 'wp-admin/includes/class-wp-list-table.php');
+endif;
+
 class Juz_Related_List_Table extends WP_List_Table {
 	var $juz_related_items;
 	
@@ -336,7 +340,7 @@ function wp_juz_related_list() {
 
 
 
-function wp_juz_related() {
+function wp_jauz_related() {
 //	global $wp_query;
 	global $wpdb;
 	
@@ -449,7 +453,7 @@ function wp_juz_related() {
 
 
 echo get_the_ID();
-wp_juz_related();
+// wp_juz_related();
 
 
 
