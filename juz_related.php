@@ -9,20 +9,37 @@ Author URI: http://www.juzhax.com/
 License: GPL2
 */
 
-
-/** Step 2 (from text above). */
 add_action( 'admin_menu', 'wp_juz_related_menu' );
 
-/** Step 1. */
 function wp_juz_related_menu() {
 	add_options_page( 'Juz Related', 'Juz Related', 'manage_options', 'juz-related', 'wp_juz_related_page' );
 }
 
-function wp_juz_related_page_menu() {
-	$menu = '<a href="?page=juz-related">List Items</a> | ';
+function wp_juz_related_header($notice) {
+/*
+	$header .= '<a href="?page=juz-related">List Items</a> | ';
+	$header .= '<a href="?page=juz-related&action=add">Add Item</a>';
+*/	
+	$header = '<h2>Juz Related <a href="?page=juz-related&action=add" class="add-new-h2">Add New</a></h2>';
+	$header .= $notice;
+/*	
+	$header .= '
+<div>
+<ul class="subsubsub">
+	<li class="all"><a href="edit-comments.php?comment_status=all" class="current">All</a> |</li>
+	<li class="moderated"><a href="edit-comments.php?comment_status=moderated">Pending <span class="count">(<span class="pending-count">0</span>)</span></a> |</li>
+	<li class="approved"><a href="edit-comments.php?comment_status=approved">Approved</a> |</li>
+	<li class="spam"><a href="edit-comments.php?comment_status=spam">Spam <span class="count">(<span class="spam-count">2</span>)</span></a> |</li>
+	<li class="trash"><a href="edit-comments.php?comment_status=trash">Trash <span class="count">(<span class="trash-count">0</span>)</span></a></li>
+</ul>
+</div>
+';
+*/
 
-	$menu .= '<a href="?page=juz-related&action=add">Add Item</a>';
-	return $menu;
+	$temp = '
+<h2>Posts <a href="http://juzhax.com/wp-admin/post-new.php" class="add-new-h2">Add New</a></h2>';		
+
+	return $header;
 }
 
 /** Step 3. */
@@ -45,12 +62,6 @@ function wp_juz_related_page() {
 		wp_juz_related_form('edit');
 	} elseif( isset($_GET['action']) && $_GET['action'] == 'add') {
 		wp_juz_related_form('add');
-	} else if( isset($_POST[ $hidden_field_name ]) && $_POST[ $hidden_field_name ] == 'Y' ) {
-
-?>
-<div class="updated"><p><strong><?php _e('settings saved.', 'menu-juz-related' ); ?></strong></p></div>
-<?php
-
     } else {
 		wp_juz_related_list();
     
@@ -60,37 +71,172 @@ function wp_juz_related_page() {
 
 function wp_juz_related_form($action='add') {
     // Now display the settings editing screen
+    global $wpdb;
+ 	$wpdb->show_errors(); 
+
+    $error = $notice = $output = '';
+    $success = 0;
     if ($action == 'add') {
-		$juz_related_title = $juz_related_data = '';
+		$juz_related_title = $juz_related_data = $juz_related_post_id = '';
+	} elseif ($action == 'edit' && isset($_GET['id']) && is_numeric($_GET['id']) && !isset($_POST['juz_related'])) {
+		//$mylink = $wpdb->get_row("SELECT * FROM $wpdb->links WHERE link_id = 10");
+		$wp_juz_related_item = $wpdb->get_row("SELECT * from wp_juz_related_item WHERE item_id = ".$_GET['id'], ARRAY_A);
+		$juz_related_title = $wp_juz_related_item['item_title'];
+		$juz_related_data = $wp_juz_related_item['item_data'];
+		
+		$juz_related_id = array();
+		$wp_juz_related_id = $wpdb->get_results("SELECT post_id from wp_juz_related_id WHERE item_id = ".$_GET['id'], ARRAY_A);
+		foreach ($wp_juz_related_id as $id) {
+			$juz_related_id[] = $id['post_id'];
+		}
+		$juz_related_post_id = implode(',', $juz_related_id);
+		
 	}
 	
-	if (isset($_POST['juz_related_title']) && $_POST['juz_related_title']) {
-		$juz_related_title = $_POST['juz_related_title'];
+	if (isset($_POST['juz_related_title']) && $_POST['juz_related_title'] != '') {
+		$juz_related_title = stripcslashes($_POST['juz_related_title']);
+	} else	if (isset($_POST['juz_related_title']) && $_POST['juz_related_title'] == '') {
+		$error = 'Item title cannot be empty.';
 	}
+
+	if (isset($_POST['juz_related_post_id']) && $_POST['juz_related_post_id']) {
+		$juz_related_post_id = $_POST['juz_related_post_id'];
+		$post_ids = split(',',$juz_related_post_id);
+		foreach ($post_ids as $post_id) {
+			$post_id = trim($post_id);
+			if (!is_numeric($post_id)) {
+				$error .= 'Illegal Post ID found';
+				break;
+			}
+		}
+	}
+
+
 
 	if (isset($_POST['juz_related_data']) && $_POST['juz_related_data']) {
-		$juz_related_data = $_POST['juz_related_data'];
+		$juz_related_data = stripcslashes($_POST['juz_related_data']);
+	}
+
+	if ($error == '' && isset($_POST['juz_related']) && $_POST['juz_related'] == 'post') {
+		$success = 1;
 	}
 	
-    echo '<div class="wrap">';
 
-    // header
+    if ($error != '') {
+		$notice = '<div class="error"><p><strong>'.$error.'</strong></p></div>';
+    } 
+    
+    if ($success == 1) {
+    	if ($action == 'add') {
+	
+			$wpdb->insert( 
+				'wp_juz_related_item', 
+				array( 
+					'item_title' => $juz_related_title, 
+					'item_data' => $juz_related_data,
+					'item_update' => current_time('mysql', 1),
+				), 
+				array( 
+					'%s', 
+					'%s',
+					'%s' 
+				) 
+			);   
+			$current_id = $wpdb->insert_id;
+		} elseif ($action == 'edit') {
+			$current_id = $_GET['id'];
+				$wpdb->update( 
+				'wp_juz_related_item', 
+				array( 
+					'item_title' => $juz_related_title, 
+					'item_data' => $juz_related_data,
+					'item_update' => current_time('mysql', 1),
+				), 
+				array('item_id' => $current_id),
+				array( 
+					'%s', 
+					'%s',
+					'%s' 
+				),
+				array (
+					'%d',
+				) 
+				
+			);  		
+			
+			
+			
+			
+			
+		}
+		foreach ($post_ids as $post_id) {
+			$post_id = trim($post_id);
+			$wpdb->query(
+				'
+				INSERT INTO wp_juz_related_id (post_id, item_id)
+				VALUES ('.$post_id.', '.$current_id.')
+				ON DUPLICATE KEY 
+				UPDATE 
+				item_id = '.$current_id.';
+				'
+			);
+		}
+		
+		
+		$wpdb->print_error();
+		$notice = '';
+		if ($action == 'add') {
 
-    echo "<h2>" . __( 'Juz Related : Add', 'menu-juz-related' ) . "</h2>";
+			$notice = '<div class="updated"><p><strong>Added successful !</strong></p></div>';
+			$notice .= '<a href="?page=juz-related">Back to List</a>';
+			
+		} elseif ($action == 'edit') {
+			$notice = '<div class="updated"><p><strong>Updated successful !</strong></p></div>';
+		
+		}
 
-    // settings form
-    echo wp_juz_related_page_menu();
-    echo '
 
-<form name="juz_related_form" method="post" action="?page=juz-related&action='.$action.'">
+		
+	}
+	
+
+	
+    $output .= '<div class="wrap">';
+    if ($action == 'add') {
+		$output .= '<h2>Juz Related : Add New</h2>';
+	} elseif ($action == 'edit') {
+		$output .= '<h2>Juz Related : Edit</h2>';
+		
+	}
+	$output .= $notice;    
+//    $output .= wp_juz_related_header($notice);
+	
+	if ($success == 0 || $action == 'edit') {
+	    
+	    if ($action == 'add') {
+		    $output .= '<form name="juz_related_form" method="post" action="?page=juz-related&action='.$action.'">';
+		} elseif ($action == 'edit') {
+		    $output .= '<form name="juz_related_form" method="post" action="?page=juz-related&action='.$action.'&id='.$_GET['id'].'">';
+		
+		}    
+	    
+		$output .= '
+
 <table class="form-table">
 <tbody>
 
 
 <tr valign="top">
 <th scope="row"><label for="juz_related_title">Item Title</label></th>
-<td><input name="juz_related_title" type="text" id="juz_related_title" value="'.$juz_related_title.'" class="regular-text"></td>
+<td><input name="juz_related_title" type="text" id="juz_related_title" value="'.$juz_related_title.'" class="regular-text" autocomplete="off"></td>
 </tr>
+
+<tr valign="top">
+<th scope="row"><label for="juz_related_post_id">Post ID</label></th>
+<td><input name="juz_related_post_id" type="text" id="juz_related_post_id" value="'.$juz_related_post_id.'" class="regular-text" autocomplete="off">
+<p class="description">e.g.: 234,545,7676,78454,6565,654343,54656</p></td>
+</tr>
+
 
 <tr valign="top"><th scope="row">Item Data</th><td>
 <textarea name="juz_related_data" class="large-text" cols="50" rows="20">'.$juz_related_data.'</textarea></td></tr>
@@ -99,101 +245,91 @@ function wp_juz_related_form($action='add') {
 </tbody></table>
 <hr />
 <p class="submit">
-<input type="submit" name="Submit" class="button-primary" value="Add New" />
-</p>
-
-</div>
 ';
-
-$temp = '
-
-<p>Title: <br />
-
-<input type="text" name="title" value="" size="100">
-</p>
-<p>
-Item data: <br />
-<textarea name="juz_related_item_data" id="juz_related_item_data" class="large-text code" rows="20">Put your HTML code to here</textarea>
-
-</p>
-<hr />
-<p class="submit">
-<input type="submit" name="Submit" class="button-primary" value="Add New" />
-</p>
-
-</form>
-
-
-<table class="form-table">
-<tbody><tr valign="top">
-<th scope="row">Formatting</th>
-<td><fieldset><legend class="screen-reader-text"><span>Formatting</span></legend>
-<label for="use_smilies">
-<input name="use_smilies" type="checkbox" id="use_smilies" value="1" checked="checked">
-Convert emoticons like <code>:-)</code> and <code>:-P</code> to graphics on display</label><br>
-<label for="use_balanceTags"><input name="use_balanceTags" type="checkbox" id="use_balanceTags" value="1"> WordPress should correct invalidly nested XHTML automatically</label>
-</fieldset></td>
-</tr>
-<tr valign="top">
-<th scope="row"><label for="default_category">Default Post Category</label></th>
-<td>
-<select name="default_category" id="default_category" class="postform">
-	<option class="level-0" value="2">Blog</option>
-	<option class="level-0" value="11">Joke</option>
-	<option class="level-0" value="10">Linux</option>
-	<option class="level-0" value="1" selected="selected">Uncategorized</option>
-</select>
-</td>
-</tr>
-<tr valign="top">
-<th scope="row"><label for="default_post_format">Default Post Format</label></th>
-<td>
-	<select name="default_post_format" id="default_post_format">
-		<option value="0">Standard</option>
-		<option value="aside">Aside</option>
-		<option value="chat">Chat</option>
-		<option value="gallery">Gallery</option>
-		<option value="link">Link</option>
-		<option value="image">Image</option>
-		<option value="quote">Quote</option>
-		<option value="status">Status</option>
-		<option value="video">Video</option>
-		<option value="audio">Audio</option>
-	</select>
-</td>
-</tr>
-
-</tbody></table>
-
-<textarea name="ping_sites" id="ping_sites" class="large-text code" rows="3">http://rpc.pingomatic.com/</textarea>
-
-
-
-
-
-	';
-	
+	if ($action == 'add') {
+		$output .= '<input type="submit" name="Submit" class="button-primary" value="Add New" />';
+	} elseif ($action == 'edit') {
+		$output .= '<input type="submit" name="Submit" class="button-primary" value="Update" />';
+		
 	}
+	$output .= '</p>
+<input type="hidden" name="juz_related" value="post" />
+</div>
+</form>
+';
+	}
+
+	echo $output;	
+}
+
+class Juz_Related_List_Table extends WP_List_Table {
+	var $juz_related_items;
+	
+
+	function get_columns(){
+		$columns = array(
+			'juz_related_title' => 'Title',
+			'juz_related_post_ids'    => 'Post IDs',
+			'juz_related_update'      => 'Update'
+		);
+		return $columns;
+	}
+
+	function prepare_items() {
+	
+		$columns = $this->get_columns();
+		$hidden = array();
+		$sortable = array();
+		$this->_column_headers = array($columns, $hidden, $sortable);
+		$this->items = $this->juz_related_items;
+	}
+
+	function column_default( $item, $column_name ) {
+		switch( $column_name ) { 
+			case 'juz_related_title':
+				
+				return '<a href="?page=juz-related&action=edit&id='.$item[ 'item_id' ].'">'.$item[ 'item_title' ].'</a>';
+			case 'juz_related_post_ids':
+				$post_ids = wp_juz_related_get_post_ids($item[ 'item_id' ]);
+				$return_ids = array();
+				foreach ($post_ids as $post_id) {
+					$post_info = get_post($post_id['post_id'],ARRAY_A);
+					if (isset($post_info['post_type']) && $post_info['post_type'] == 'post') {
+						$return_ids[] = '<a href="/?p='.$post_id['post_id'].'">'.$post_id['post_id'].'</a>';
+					} else {
+						$return_ids[] = $post_id['post_id'];
+					}
+				}
+				$return_ids = implode(',', $return_ids);
+				return $return_ids;
+			case 'juz_related_update':
+				return $item[ 'item_update' ];
+		default:
+			// return print_r( $item, true ) ; //Show the whole array for troubleshooting purposes
+		}
+	}
+}
+
+function wp_juz_related_get_post_ids($item_id) {
+	global $wpdb;
+	if (is_numeric($item_id)) {
+		return $wpdb->get_results( "SELECT * FROM wp_juz_related_id WHERE item_id = $item_id;", ARRAY_A );
+	}
+}
+
 
 function wp_juz_related_list() {
 	global $wpdb;
 	
-	$myrows = $wpdb->get_results( "SELECT * FROM wp_juz_related_id;" );
-//	print_r($myrows);
-	
-	
+
+	$JuzRelatedTable = new Juz_Related_List_Table();	
 
     echo '<div class="wrap">';
-    echo "<h2>" . __( 'Juz Related : List', 'menu-juz-related' ) . "</h2>";
-    echo wp_juz_related_page_menu();
-
-
-	echo "<table><tr><th>";
-	echo "ID</th><th>Name</th><th>Date</th><th>Action</th>";
-	echo "</tr><tr>";
-	echo "<td><td></td><td></td><td></td>";
-	echo "</td></tr></table>";
-	echo "</div>";	
+    echo wp_juz_related_header();
+    $JuzRelatedTable->juz_related_items = $wpdb->get_results( "SELECT * FROM wp_juz_related_item ORDER BY item_update DESC;", ARRAY_A );
+	$JuzRelatedTable->prepare_items(); 
+	$JuzRelatedTable->display(); 
+	echo '</div>'; 
 
 }
 
@@ -202,6 +338,7 @@ function wp_juz_related_list() {
 
 function wp_juz_related() {
 //	global $wp_query;
+	global $wpdb;
 	
 	$content = '';
 	$wp_juz = array();
@@ -283,6 +420,14 @@ function wp_juz_related() {
 	
 	if (is_single()) {
 		$get_the_ID = get_the_ID();
+		$wp_juz_data = $wpdb->get_row('SELECT post_id, `wp_juz_related_id`.item_id, item_data
+					FROM `wp_juz_related_id`
+					LEFT JOIN `wp_juz_related_item`
+					ON `wp_juz_related_id`.item_id =`wp_juz_related_item`.item_id
+					WHERE post_id = '.$get_the_ID.';',ARRAY_A);
+		echo '<pre>';
+		print_r($wp_juz_data);
+		echo '</pre>';
 
 		if (isset($wp_juz_group[$get_the_ID])) {
 			$content .= $wp_juz_data[$wp_juz_group[$get_the_ID]];
@@ -303,6 +448,8 @@ function wp_juz_related() {
 }
 
 
+echo get_the_ID();
+wp_juz_related();
 
 
 
